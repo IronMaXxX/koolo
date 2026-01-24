@@ -24,12 +24,21 @@ echo [1/2] Updating Repository...
 echo -----------------------------------
 
 git checkout main
-git restore .
-git pull origin main
+set CHECKOUT_ERROR=%errorlevel%
+echo [LOG] git checkout errorlevel: %CHECKOUT_ERROR%
 
-if errorlevel 1 (
+git restore .
+set RESTORE_ERROR=%errorlevel%
+echo [LOG] git restore errorlevel: %RESTORE_ERROR%
+
+git pull origin main
+set PULL_ERROR=%errorlevel%
+echo [LOG] git pull errorlevel: %PULL_ERROR%
+
+if %PULL_ERROR% neq 0 (
     echo.
-    echo ERROR: Git pull failed.
+    echo ERROR: Git pull failed with errorlevel: %PULL_ERROR%
+    echo [LOG] Git operations failed - checkout: %CHECKOUT_ERROR%, restore: %RESTORE_ERROR%, pull: %PULL_ERROR%
     pause
     exit /b
 )
@@ -48,7 +57,7 @@ if exist "%BUILD_DIR%\*.exe" (
         echo Creating directory: %OLD_DIR%
         mkdir "%OLD_DIR%"
     )
-    
+
     echo Moving old .exe to old_versions folder...
     move /y "%BUILD_DIR%\*.exe" "%OLD_DIR%\"
 ) else (
