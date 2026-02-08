@@ -788,11 +788,19 @@ func (s *HttpServer) getStatusData() IndexData {
 			// Prefer human-readable area name if available
 			if lvl := data.PlayerUnit.Area.Area(); lvl.Name != "" {
 				areaStr = lvl.Name
+				// Local typo fix: d2go/pkg/data/area/areas.go line 117 uses "Rigid Highlands".
+				switch areaStr {
+				case "Rigid Highlands":
+					areaStr = "Frigid Highlands"
+				case "Rigid Highland":
+					areaStr = "Frigid Highland"
+				}
 			} else {
 				areaStr = fmt.Sprint(data.PlayerUnit.Area)
 			}
 
 			stats.UI = bot.CharacterOverview{
+				CharacterName:   data.CharacterCfg.CharacterName,
 				Class:           data.CharacterCfg.Character.Class,
 				Level:           lvl,
 				Experience:      exp,
@@ -818,6 +826,9 @@ func (s *HttpServer) getStatusData() IndexData {
 		// Check if this is a companion follower & ensure we always expose class
 		cfg, found := config.GetCharacter(supervisorName)
 		if found {
+			if stats.UI.CharacterName == "" {
+				stats.UI.CharacterName = cfg.CharacterName
+			}
 			if stats.UI.Class == "" {
 				stats.UI.Class = cfg.Character.Class
 			}
@@ -983,6 +994,7 @@ func (s *HttpServer) Listen(port int) error {
 	http.HandleFunc("/armory", s.armoryPage)
 	http.HandleFunc("/api/armory", s.armoryAPI)
 	http.HandleFunc("/api/armory/characters", s.armoryCharactersAPI)
+	http.HandleFunc("/api/armory/dump", s.armoryDumpAPI)
 
 	s.registerDropRoutes()
 

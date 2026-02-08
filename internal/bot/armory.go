@@ -364,6 +364,11 @@ func dumpArmoryData(characterName string, gameData *game.Data, gameName string) 
 	return nil
 }
 
+// DumpArmoryData creates a snapshot of the character's inventory and equipment.
+func DumpArmoryData(characterName string, gameData *game.Data, gameName string) error {
+	return dumpArmoryData(characterName, gameData, gameName)
+}
+
 // LoadArmoryData loads the armory data for a character
 func LoadArmoryData(characterName string) (*ArmoryCharacter, error) {
 	cwd, err := os.Getwd()

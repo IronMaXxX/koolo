@@ -126,6 +126,7 @@ type RunStats struct {
 
 // CharacterOverview is a compact summary of useful live stats for the UI
 type CharacterOverview struct {
+	CharacterName   string
 	Class           string
 	Level           int
 	Experience      uint64 // Changed to uint64 - D2R stores XP as unsigned 32-bit, levels 93+ exceed int32 max

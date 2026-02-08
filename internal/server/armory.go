@@ -81,3 +81,39 @@ func (s *HttpServer) armoryCharactersAPI(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(charactersWithArmory)
 }
+
+// armoryDumpAPI writes a fresh armory JSON snapshot for a running supervisor.
+func (s *HttpServer) armoryDumpAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	characterName := r.URL.Query().Get("characterName")
+	if characterName == "" {
+		http.Error(w, "characterName parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	gameData := s.manager.GetData(characterName)
+	if gameData == nil {
+		http.Error(w, "supervisor is not running or game data is not available", http.StatusConflict)
+		return
+	}
+
+	gameName := ""
+	if ctx := s.manager.GetContext(characterName); ctx != nil && ctx.GameReader != nil {
+		gameName = ctx.GameReader.LastGameName()
+	}
+
+	if err := bot.DumpArmoryData(characterName, gameData, gameName); err != nil {
+		http.Error(w, fmt.Sprintf("failed to export inventory: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":    "ok",
+		"character": characterName,
+	})
+}

@@ -2,6 +2,142 @@ let socket;
 let reconnectAttempts = 0;
 const maxReconnectAttempts = 5;
 const reconnectDelay = 3000;
+// Keep XP data in one place so runtime calculations reuse the same source.
+// Source: The Arreat Summit / classic.battle.net XP per level table.
+const XP_TABLE = {
+  1: [0, 500],
+  2: [500, 1000],
+  3: [1500, 2250],
+  4: [3750, 4125],
+  5: [7875, 6300],
+  6: [14175, 8505],
+  7: [22680, 10206],
+  8: [32886, 11510],
+  9: [44396, 13319],
+  10: [57715, 14429],
+  11: [72144, 18036],
+  12: [90180, 22545],
+  13: [112725, 28181],
+  14: [140906, 35226],
+  15: [176132, 44033],
+  16: [220165, 55042],
+  17: [275207, 68801],
+  18: [344008, 86002],
+  19: [430010, 107503],
+  20: [537513, 134378],
+  21: [671891, 167973],
+  22: [839864, 209966],
+  23: [1049830, 262457],
+  24: [1312287, 328072],
+  25: [1640359, 410090],
+  26: [2050449, 512612],
+  27: [2563061, 640765],
+  28: [3203826, 698434],
+  29: [3902260, 761293],
+  30: [4663553, 829810],
+  31: [5493363, 904492],
+  32: [6397855, 985897],
+  33: [7383752, 1074627],
+  34: [8458379, 1171344],
+  35: [9629723, 1276765],
+  36: [10906488, 1391674],
+  37: [12298162, 1516924],
+  38: [13815086, 1653448],
+  39: [15468534, 1802257],
+  40: [17270791, 1964461],
+  41: [19235252, 2141263],
+  42: [21376515, 2333976],
+  43: [23710491, 2544034],
+  44: [26254525, 2772997],
+  45: [29027522, 3022566],
+  46: [32050088, 3294598],
+  47: [35344686, 3591112],
+  48: [38935798, 3914311],
+  49: [42850109, 4266600],
+  50: [47116709, 4650593],
+  51: [51767302, 5069147],
+  52: [56836449, 5525370],
+  53: [62361819, 6022654],
+  54: [68384473, 6564692],
+  55: [74949165, 7155515],
+  56: [82104680, 7799511],
+  57: [89904191, 8501467],
+  58: [98405658, 9266598],
+  59: [107672256, 10100593],
+  60: [117772849, 11009646],
+  61: [128782495, 12000515],
+  62: [140783010, 13080560],
+  63: [153863570, 14257811],
+  64: [168121381, 15541015],
+  65: [183662396, 16939705],
+  66: [200602101, 18464279],
+  67: [219066380, 20126064],
+  68: [239192444, 21937409],
+  69: [261129853, 23911777],
+  70: [285041630, 26063836],
+  71: [311105466, 28409582],
+  72: [339515048, 30966444],
+  73: [370481492, 33753424],
+  74: [404234916, 36791232],
+  75: [441026148, 40102443],
+  76: [481128591, 43711663],
+  77: [524840254, 47645713],
+  78: [572485967, 51933826],
+  79: [624419793, 56607872],
+  80: [681027665, 61702579],
+  81: [742730244, 67255812],
+  82: [809986056, 73308835],
+  83: [883294891, 79906630],
+  84: [963201521, 87098226],
+  85: [1050299747, 94937067],
+  86: [1145236814, 103481403],
+  87: [1248718217, 112794729],
+  88: [1361512946, 122946255],
+  89: [1484459201, 134011418],
+  90: [1618470619, 146072446],
+  91: [1764543065, 159218965],
+  92: [1923762030, 173548673],
+  93: [2097310703, 189168053],
+  94: [2286478756, 206193177],
+  95: [2492671933, 224750564],
+  96: [2717422497, 244978115],
+  97: [2962400612, 267026144],
+  98: [3229426756, 291058498],
+  99: [3520485254, 0],
+};
+
+// Source: The Arreat Summit "Experience" table (Character Levels 70-98).
+const XP_LEVEL_PENALTY_BY_LEVEL = {
+  70: 0.9531,
+  71: 0.9063,
+  72: 0.8594,
+  73: 0.8125,
+  74: 0.7656,
+  75: 0.7188,
+  76: 0.6719,
+  77: 0.625,
+  78: 0.5781,
+  79: 0.5313,
+  80: 0.4844,
+  81: 0.4375,
+  82: 0.3906,
+  83: 0.3438,
+  84: 0.2969,
+  85: 0.25,
+  86: 0.1875,
+  87: 0.1406,
+  88: 0.1094,
+  89: 0.0859,
+  90: 0.0596,
+  91: 0.0449,
+  92: 0.0342,
+  93: 0.0254,
+  94: 0.0195,
+  95: 0.0146,
+  96: 0.0107,
+  97: 0.0078,
+  98: 0.0059,
+};
 
 function connectWebSocket() {
   const wsScheme = window.location.protocol === "https:" ? "wss://" : "ws://";
@@ -89,7 +225,9 @@ function createCharacterCard(key) {
   const card = document.createElement("div");
   card.className = "character-card";
   card.id = `card-${key}`;
+  const supervisorName = key && String(key).trim() !== "" ? key : "Supervisor";
 
+  // Keep compact stat buttons readable while still showing a tooltip label on hover.
   card.innerHTML = `
             <div class="character-header">
                 <div class="character-stats">
@@ -97,89 +235,109 @@ function createCharacterCard(key) {
                     <label class="autostart-toggle" title="Include in Auto Start">
                       <input type="checkbox" class="autostart-checkbox" data-character="${key}">
                     </label>
-                    <span>${key}</span>
-                     <div class="status-indicator"></div>
-                     <div class="co-line co-line-with-stats">
-                      <div class="co-info-left">
-                        <span class="co-classlevel">Class/Level (Exp)</span>
-                        <span class="co-dot"> • </span>
-                        <span class="co-area">Area</span>
-                        <span class="co-dot"> • </span>
-                        <span class="co-ping">—</span>
-                        <div class="co-xp" title="">
-                            <div class="xp-bar" style="height:6px;background:#2b2f36;border-radius:4px;overflow:hidden;width:50px;display:inline-block;vertical-align:middle;">
-                                <div class="xp-bar-fill" style="height:100%;width:0;background:linear-gradient(90deg,#6aa0ff,#3a7bff);"></div>
-                            </div>
-                            <span class="xp-percent" style="margin-left:-4px;font-size:0.85em;color:#9bb3d3;">0%</span>
-                        </div>
-                          <span class="co-dot"> • </span>
-                          <span class="co-difficulty">Difficulty</span>
-                      </div>
-                    </div>
+                    <span class="supervisor-name">${supervisorName}</span>
+                    <div class="status-indicator"></div>
+                    <span class="co-char-meta">Char name | Char class</span>
                   </div>
                 </div>
                 <div class="character-controls">
-                      <button class="btn btn-outline companion-join-btn" onclick="showCompanionJoinPopup('${key}')" style="display:none;">
-                          <i class="bi bi-door-open btn-icon"></i>Join Game
-                      </button>
-                      <button class="btn btn-outline btn-games">
-                          <i class="bi bi-controller btn-icon"></i><span class="games-count">0</span>
-                      </button>
-                      <button class="btn btn-outline btn-drops">
-                          <i class="bi bi-gem btn-icon"></i><span class="drops-count">0</span>
-                      </button>
+                      <div class="character-controls-row character-controls-row-main">
+                          <button class="start-pause btn btn-start" data-character="${key}" title="Start">
+                              <i class="bi bi-play-fill"></i>
+                          </button>
+                          <button class="manual-play btn btn-manual" data-character="${key}" title="Manual Play" style="display:none;">
+                              M
+                          </button>
+                          <button class="btn btn-outline attach-btn" onclick="showAttachPopup('${key}')" style="display:none;" title="Attach">
+                              <i class="bi bi-link-45deg"></i>
+                          </button>
+                          <button class="stop btn btn-stop" data-character="${key}" style="display:none;" title="Stop">
+                              <i class="bi bi-stop-fill"></i>
+                          </button>
+                          <button class="btn btn-outline settings-btn" onclick="location.href='/supervisorSettings?supervisor=${key}'" title="Settings">
+                              <i class="bi bi-gear"></i>
+                          </button>
                           <button class="btn btn-outline reset-muling-btn" data-character-name="${key}" title="Reset Muling Progress">
                               <i class="bi bi-arrow-counterclockwise"></i>
                           </button>
-                      <button class="btn btn-outline" onclick="location.href='/armory?character=${key}'" title="Armory">
-                          <i class="bi bi-shield-shaded"></i>
-                      </button>
-                      <button class="btn btn-outline" onclick="location.href='/supervisorSettings?supervisor=${key}'" title="Settings">
-                          <i class="bi bi-gear"></i>
-                      </button>
-                      <button class="start-pause btn btn-start" data-character="${key}" title="Start">
-                          <i class="bi bi-play-fill"></i>
-                      </button>
-                      <button class="manual-play btn btn-manual" data-character="${key}" title="Manual Play" style="display:none;">
-                          M
-                      </button>
-                      <button class="stop btn btn-stop" data-character="${key}" style="display:none;" title="Stop">
-                          <i class="bi bi-stop-fill"></i>
-                      </button>
-                      <button class="btn btn-outline attach-btn" onclick="showAttachPopup('${key}')" style="display:none;" title="Attach">
-                          <i class="bi bi-link-45deg"></i>
-                      </button>
-                      <button class="toggle-details" title="Toggle Details">
-                          <i class="bi bi-chevron-down"></i>
-                      </button>
+                          <button class="btn btn-outline armory-btn" onclick="location.href='/armory?character=${key}'" title="Armory">
+                              <i class="bi bi-shield-shaded"></i>
+                          </button>
+                          <button class="btn btn-outline dump-inventory-btn" title="Update Armory now" aria-label="Update Character in Armory">
+                              <i class="bi bi-person-plus"></i>
+                          </button>
+                          <button class="btn btn-outline btn-inline-stat btn-games" title="Games" aria-label="Games">
+                              <i class="bi bi-controller btn-icon"></i><span class="games-count">0</span>
+                          </button>
+                          <button class="btn btn-outline btn-inline-stat btn-drops" title="Drops" aria-label="Drops">
+                              <i class="bi bi-gem btn-icon"></i><span class="drops-count">0</span>
+                          </button>
+                          <button class="toggle-details" title="Toggle Details">
+                              <i class="bi bi-chevron-down"></i>
+                          </button>
+                          <button class="btn btn-outline companion-join-btn" onclick="showCompanionJoinPopup('${key}')" style="display:none;">
+                              <i class="bi bi-door-open btn-icon"></i>Join Game
+                          </button>
+                      </div>
                   </div>
             </div>
-            <div class="co-line">
-              <span class="co-life">Life: -</span>
-              <span class="co-dot"> • </span>
-              <span class="co-mana">Mana: -</span>
-              <span class="co-dot"> • </span>
-              <span class="co-mf">MF: -</span>
-              <span class="co-dot"> • </span>
-              <span class="co-gold">Gold: -</span>
-              <span class="co-dot"> • </span>
-              <span class="co-gf">GF: -</span>
-              <span class="co-dot"> • </span>
-              <span class="co-res">Res: -</span>
+            <div class="character-overview-lines">
+              <div class="co-line co-line-with-stats">
+                <div class="co-info-left">
+                  <span class="co-difficulty">Difficulty</span>
+                  <span class="co-dot"> • </span>
+                  <span class="co-area">Area</span>
+                  <span class="co-dot"> • </span>
+                  <span class="co-ping">Ping: —</span>
+                  <span class="co-dot"> • </span>
+                  <span class="co-level">Lvl: —</span>
+                  <div class="co-xp" title="">
+                      <div class="xp-bar" style="height:12px;background:#2b2f36;border-radius:4px;overflow:hidden;width:75px;display:inline-block;vertical-align:middle;">
+                          <div class="xp-bar-fill" style="height:100%;width:0;background:linear-gradient(90deg,#6aa0ff,#3a7bff);"></div>
+                      </div>
+                      <span class="xp-percent">0%</span>
+                  </div>
+                  <span class="co-eta-wrap">
+                    <span class="co-dot"> • </span>
+                    <span class="co-eta">Lvl up in ~ —</span>
+                  </span>
+                  <span class="co-dot"> • </span>
+                  <span class="co-games-per-hour-inline">Games/h: —</span>
+                </div>
+              </div>
+              <div class="co-line co-vitals-line">
+                <span class="co-life">Life: -</span>
+                <span class="co-dot"> • </span>
+                <span class="co-mana">Mana: -</span>
+                <span class="co-dot"> • </span>
+                <span class="co-mf">MF: -</span>
+                <span class="co-dot"> • </span>
+                <span class="co-gold">Gold: -</span>
+                <span class="co-dot"> • </span>
+                <span class="co-gf">GF: -</span>
+                <span class="co-dot"> • </span>
+                <span class="co-res">Res: -</span>
+              </div>
             </div>
             <div class="character-details">
-                <div class="status-details">
-                    <span class="status-badge"></span>
+                <div class="co-line expanded-runtime-line">
+                    <span class="runtime-entry">
+                      <span class="runtime-label">Supervisor running for: </span><span class="running-for">—</span>
+                    </span>
+                    <span class="co-dot"> • </span>
+                    <span class="runtime-entry">
+                      <span class="runtime-label">Current game: </span><span class="current-game-time">—</span>
+                    </span>
+                    <span class="co-dot"> • </span>
+                    <span class="runtime-entry">
+                      <span class="runtime-label">avg game: </span><span class="avg-game-time">—</span>
+                    </span>
+                    <span class="co-dot"> • </span>
+                    <span class="runtime-entry runtime-entry-to99">
+                      <span class="runtime-label">Runs to Lvl 99: ~ </span><span class="to-level-99">—</span>
+                    </span>
                 </div>
                 <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-label">Games</div>
-                        <div class="stat-value runs">0</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Drops</div>
-                        <div class="stat-value drops">None</div>
-                    </div>
                     <div class="stat-item">
                         <div class="stat-label">Chickens</div>
                         <div class="stat-value chickens">0</div>
@@ -218,6 +376,7 @@ function setupEventListeners(card, key) {
   const startPauseBtn = card.querySelector(".start-pause");
   const stopBtn = card.querySelector(".stop");
   const resetMuleBtn = card.querySelector(".reset-muling-btn");
+  const dumpInventoryBtn = card.querySelector(".dump-inventory-btn");
   const autoStartCheckbox = card.querySelector(".autostart-checkbox");
   if (resetMuleBtn) {
     resetMuleBtn.addEventListener("click", (e) => {
@@ -266,6 +425,27 @@ function setupEventListeners(card, key) {
       ).catch((err) => {
         console.error("Failed to toggle auto start", err);
       });
+    });
+  }
+
+  if (dumpInventoryBtn) {
+    // Trigger a manual armory dump and save current inventory to JSON.
+    dumpInventoryBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      try {
+        const response = await fetch(
+          `/api/armory/dump?characterName=${encodeURIComponent(key)}`,
+          {
+            method: "POST",
+          }
+        );
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || "Failed to export inventory");
+        }
+      } catch (error) {
+        console.error("Failed to export inventory:", error);
+      }
     });
   }
 
@@ -335,20 +515,20 @@ function updateStatusPosition(card, isExpanded) {
 
 function updateCharacterCard(card, key, value, dropCount, schedulerInfo) {
   if (!card) return;
+  const supervisorNameEl = card.querySelector(".supervisor-name");
+  if (supervisorNameEl) {
+    // Keep a readable placeholder until a real supervisor name is available.
+    const supervisorName = key && String(key).trim() !== "" ? key : "Supervisor";
+    supervisorNameEl.textContent = supervisorName;
+  }
 
   const startPauseBtn = card.querySelector(".start-pause");
   const stopBtn = card.querySelector(".stop");
   const attachBtn = card.querySelector(".attach-btn");
   const manualPlayBtn = card.querySelector(".manual-play");
   const companionJoinBtn = card.querySelector(".companion-join-btn");
-  const statusDetails = card.querySelector(".status-details");
-  const statusBadge = statusDetails.querySelector(".status-badge");
   const statusIndicator = card.querySelector(".status-indicator");
   const schedulerStatusDiv = card.querySelector(".scheduler-status");
-
-  if (statusBadge && statusDetails) {
-    updateStatus(statusBadge, statusDetails, value.SupervisorStatus);
-  }
 
   if (statusIndicator) {
     updateStatusIndicator(statusIndicator, value.SupervisorStatus);
@@ -375,11 +555,9 @@ function updateCharacterCard(card, key, value, dropCount, schedulerInfo) {
 
   // Enrich with live character overview (support both UI and ui keys)
   const uiPayload = value.UI || value.ui || null;
-  updateCharacterOverview(card, uiPayload, value.SupervisorStatus);
+  updateCharacterOverview(card, uiPayload, value.SupervisorStatus, value.Games);
 
-  if (statusDetails) {
-    updateStartedTime(statusDetails, value.StartedAt);
-  }
+  updateStartedTime(card, value.StartedAt, value.Games);
 
   // Update scheduler status
   if (schedulerStatusDiv) {
@@ -473,37 +651,89 @@ function updateStatus(statusBadge, statusDetails, status) {
     .replace(" ", "")}`;
 }
 
-function updateStartedTime(statusDetails, startedAt) {
-  let runningForElement = statusDetails.querySelector(".running-for");
-  if (!runningForElement) {
-    runningForElement = document.createElement("div");
-    runningForElement.className = "running-for";
-    statusDetails.appendChild(runningForElement);
-  }
+function updateStartedTime(card, startedAt, games) {
+  const runningForElement = card.querySelector(".running-for");
+  const currentGameElement = card.querySelector(".current-game-time");
+  const avgGameElement = card.querySelector(".avg-game-time");
+  if (!runningForElement || !currentGameElement || !avgGameElement) return;
 
-  // Check for invalid/empty startedAt before parsing
-  if (!startedAt || startedAt === "" || startedAt === "0001-01-01T00:00:00Z") {
-    runningForElement.textContent = "Running for: N/A";
-    return;
-  }
-
-  const startTime = new Date(startedAt);
   const now = new Date();
 
-  // Check for invalid date or dates before year 2000 (Go zero time, etc.)
-  if (isNaN(startTime.getTime()) || startTime.getFullYear() < 2000) {
-    runningForElement.textContent = "Running for: N/A";
-    return;
+  // Keep existing runtime behavior, but render it in the expanded runtime line.
+  if (!startedAt || startedAt === "" || startedAt === "0001-01-01T00:00:00Z") {
+    runningForElement.textContent = "—";
+  } else {
+    const startTime = new Date(startedAt);
+    if (isNaN(startTime.getTime()) || startTime.getFullYear() < 2000 || now - startTime < 0) {
+      runningForElement.textContent = "—";
+    } else {
+      // Show only the time units that are needed (s, m+s, h+m+s, d+h+m+s).
+      runningForElement.textContent = formatDurationHMS(now - startTime);
+    }
   }
 
-  const timeDiff = now - startTime;
-  if (timeDiff < 0) {
-    runningForElement.textContent = "Running for: N/A";
-    return;
+  const gameTiming = getGameTimingStats(games);
+  const currentGameStartedAt = gameTiming.currentGameStartedAt;
+
+  if (!currentGameStartedAt) {
+    currentGameElement.textContent = "—";
+  } else {
+    const currentGameStart = new Date(currentGameStartedAt);
+    if (isNaN(currentGameStart.getTime()) || currentGameStart.getFullYear() < 2000 || now - currentGameStart < 0) {
+      currentGameElement.textContent = "—";
+    } else {
+      currentGameElement.textContent = formatDurationHMS(now - currentGameStart);
+    }
   }
 
-  const duration = formatDuration(timeDiff);
-  runningForElement.textContent = `Running for: ${duration}`;
+  if (gameTiming.completedGames === 0 || gameTiming.completedTotalDuration <= 0) {
+    avgGameElement.textContent = "—";
+  } else {
+    const avgGameDuration = gameTiming.completedTotalDuration / gameTiming.completedGames;
+    avgGameElement.textContent = formatDurationHMS(avgGameDuration);
+  }
+}
+
+// Collect reusable runtime values from game history for dashboard metrics.
+function getGameTimingStats(games) {
+  let currentGameStartedAt = null;
+  let completedGames = 0;
+  let completedTotalDuration = 0;
+
+  if (!games || !Array.isArray(games) || games.length === 0) {
+    return { currentGameStartedAt, completedGames, completedTotalDuration };
+  }
+
+  for (const game of games) {
+    if (!game || !game.StartedAt || game.StartedAt === "0001-01-01T00:00:00Z") {
+      continue;
+    }
+
+    const gameStart = new Date(game.StartedAt);
+    if (isNaN(gameStart.getTime()) || gameStart.getFullYear() < 2000) {
+      continue;
+    }
+
+    if (game.FinishedAt && game.FinishedAt !== "0001-01-01T00:00:00Z") {
+      const gameEnd = new Date(game.FinishedAt);
+      if (!isNaN(gameEnd.getTime()) && gameEnd >= gameStart) {
+        completedGames++;
+        completedTotalDuration += gameEnd - gameStart;
+      }
+    }
+  }
+
+  const latestGame = games[games.length - 1];
+  if (
+    latestGame &&
+    latestGame.StartedAt &&
+    latestGame.StartedAt !== "0001-01-01T00:00:00Z" &&
+    (!latestGame.FinishedAt || latestGame.FinishedAt === "0001-01-01T00:00:00Z")
+  ) {
+    currentGameStartedAt = latestGame.StartedAt;
+  }
+
+  return { currentGameStartedAt, completedGames, completedTotalDuration };
 }
 
 function maybeShowAutoStartPrompt(data) {
@@ -639,6 +869,7 @@ function updateButtons(startPauseBtn, stopBtn, attachBtn, manualPlayBtn, status,
     startPauseBtn.style.display = "none";
     manualPlayBtn.style.display = "flex";
     manualPlayBtn.className = "manual-play btn btn-pause"; // Yellow
+    manualPlayBtn.title = "Manual Play";
     stopBtn.style.display = "flex";
     attachBtn.style.display = "none";
     return;
@@ -652,35 +883,47 @@ function updateButtons(startPauseBtn, stopBtn, attachBtn, manualPlayBtn, status,
   if (status === "Paused") {
     startPauseBtn.innerHTML = '<i class="bi bi-play-fill"></i>';
     startPauseBtn.className = "start-pause btn btn-resume";
+    startPauseBtn.title = "Resume";
     stopBtn.style.display = "flex";
     attachBtn.style.display = "none";
   } else if (status === "In game" || status === "Starting") {
     startPauseBtn.innerHTML = '<i class="bi bi-pause-fill"></i>';
     startPauseBtn.className = "start-pause btn btn-pause";
+    startPauseBtn.title = "Pause";
     stopBtn.style.display = "flex";
     attachBtn.style.display = "none";
   } else {
     startPauseBtn.innerHTML = '<i class="bi bi-play-fill"></i>';
     startPauseBtn.className = "start-pause btn btn-start";
+    startPauseBtn.title = "Start";
     stopBtn.style.display = "none";
     attachBtn.style.display = "flex";
     manualPlayBtn.style.display = "flex"; // Show manual button when not running
+    manualPlayBtn.title = "Manual Play";
   }
 }
 
 function updateStats(card, key, games, dropCount) {
   const stats = calculateStats(games);
 
-  card.querySelector(".runs").textContent = stats.totalGames;
-  card.querySelector(".drops").innerHTML =
-    dropCount === undefined
-      ? "None"
-      : dropCount === 0
+  const runsEl = card.querySelector(".runs");
+  const dropsEl = card.querySelector(".drops");
+  const chickensEl = card.querySelector(".chickens");
+  const deathsEl = card.querySelector(".deaths");
+  const errorsEl = card.querySelector(".errors");
+
+  if (runsEl) runsEl.textContent = stats.totalGames;
+  if (dropsEl) {
+    dropsEl.innerHTML =
+      dropCount === undefined
         ? "None"
-        : `<a href="/drops?supervisor=${key}">${dropCount}</a>`;
-  card.querySelector(".chickens").textContent = stats.totalChickens;
-  card.querySelector(".deaths").textContent = stats.totalDeaths;
-  card.querySelector(".errors").textContent = stats.totalErrors;
+        : dropCount === 0
+          ? "None"
+          : `<a href="/drops?supervisor=${key}">${dropCount}</a>`;
+  }
+  if (chickensEl) chickensEl.textContent = stats.totalChickens;
+  if (deathsEl) deathsEl.textContent = stats.totalDeaths;
+  if (errorsEl) errorsEl.textContent = stats.totalErrors;
 
   // Update inline stats
   const gamesCountEl = card.querySelector(".games-count");
@@ -688,7 +931,7 @@ function updateStats(card, key, games, dropCount) {
   const dropsBtn = card.querySelector(".btn-drops");
 
   if (gamesCountEl) gamesCountEl.textContent = stats.totalGames;
-  if (dropsCountEl && dropCount !== undefined) dropsCountEl.textContent = dropCount;
+  if (dropsCountEl) dropsCountEl.textContent = dropCount === undefined ? 0 : dropCount;
   if (dropsBtn) {
     dropsBtn.onclick = (e) => {
       e.stopPropagation();
@@ -697,32 +940,48 @@ function updateStats(card, key, games, dropCount) {
   }
 }
 
-function updateCharacterOverview(card, ui, status) {
-  const classLevelEl = card.querySelector(".co-classlevel");
+function updateCharacterOverview(card, ui, status, games) {
+  const charMetaEl = card.querySelector(".co-char-meta");
   const diffEl = card.querySelector(".co-difficulty");
   const areaEl = card.querySelector(".co-area");
   const pingEl = card.querySelector(".co-ping");
+  const levelEl = card.querySelector(".co-level");
+  const gamesPerHourInlineEl = card.querySelector(".co-games-per-hour-inline");
+  const toLevel99El = card.querySelector(".to-level-99");
   const lifeEl = card.querySelector(".co-life");
   const manaEl = card.querySelector(".co-mana");
   const mfEl = card.querySelector(".co-mf");
   const gfEl = card.querySelector(".co-gf");
   const goldEl = card.querySelector(".co-gold");
   const resEl = card.querySelector(".co-res");
+  const etaEl = card.querySelector(".co-eta");
+  const etaWrapEl = card.querySelector(".co-eta-wrap");
+
+  const cls = deriveClassName((ui && ui.Class) || "");
+  const characterName = (ui && ui.CharacterName ? ui.CharacterName : "").trim();
+  if (charMetaEl) {
+    charMetaEl.textContent = `${characterName || "Char name"} | ${cls || "Char class"}`;
+    charMetaEl.title = "";
+  }
 
   // If not running, show placeholders
   const isActive =
     status === "In game" || status === "Paused" || status === "Starting";
   if (!ui || !isActive) {
-    if (classLevelEl) classLevelEl.textContent = "—";
-    if (diffEl) diffEl.textContent = "—";
-    if (areaEl) areaEl.textContent = "—";
-    if (pingEl) pingEl.textContent = "—";
+    if (diffEl) diffEl.textContent = "Difficulty";
+    if (areaEl) areaEl.textContent = "Area";
+    if (pingEl) pingEl.textContent = "Ping: —";
+    if (levelEl) levelEl.textContent = "Lvl: —";
+    if (gamesPerHourInlineEl) gamesPerHourInlineEl.textContent = "Games/h: —";
+    if (toLevel99El) toLevel99El.textContent = "—";
     if (lifeEl) lifeEl.textContent = "Life: —";
     if (manaEl) manaEl.textContent = "Mana: —";
     if (mfEl) mfEl.textContent = "MF: —";
     if (gfEl) gfEl.textContent = "GF: —";
     if (goldEl) goldEl.textContent = "Gold: —";
     if (resEl) resEl.textContent = "Res: —";
+    if (etaEl) etaEl.textContent = "Lvl up in ~ —";
+    if (etaWrapEl) etaWrapEl.style.display = "inline-flex";
     const xpFill = card.querySelector(".xp-bar-fill");
     const xpPct = card.querySelector(".xp-percent");
     if (xpFill) xpFill.style.width = "0%";
@@ -730,115 +989,10 @@ function updateCharacterOverview(card, ui, status) {
     return;
   }
 
-  const cls = deriveClassName(ui.Class || "");
   const lvl = ui.Level ?? 0;
   const exp = ui.Experience ?? 0;
   let lastExp = ui.LastExp ?? 0;
   let nextExp = ui.NextExp ?? 0;
-
-  // Static XP thresholds table for levels 1–99 (total at level start, XP to next)
-  // Source: classic.battle.net Diablo II: LoD Experience Per Level
-  const xpTable = {
-    1: [0, 500],
-    2: [500, 1000],
-    3: [1500, 2250],
-    4: [3750, 4125],
-    5: [7875, 6300],
-    6: [14175, 8505],
-    7: [22680, 10206],
-    8: [32886, 11510],
-    9: [44396, 13319],
-    10: [57715, 14429],
-    11: [72144, 18036],
-    12: [90180, 22545],
-    13: [112725, 28181],
-    14: [140906, 35226],
-    15: [176132, 44033],
-    16: [220165, 55042],
-    17: [275207, 68801],
-    18: [344008, 86002],
-    19: [430010, 107503],
-    20: [537513, 134378],
-    21: [671891, 167973],
-    22: [839864, 209966],
-    23: [1049830, 262457],
-    24: [1312287, 328072],
-    25: [1640359, 410090],
-    26: [2050449, 512612],
-    27: [2563061, 640765],
-    28: [3203826, 698434],
-    29: [3902260, 761293],
-    30: [4663553, 829810],
-    31: [5493363, 904492],
-    32: [6397855, 985897],
-    33: [7383752, 1074627],
-    34: [8458379, 1171344],
-    35: [9629723, 1276765],
-    36: [10906488, 1391674],
-    37: [12298162, 1516924],
-    38: [13815086, 1653448],
-    39: [15468534, 1802257],
-    40: [17270791, 1964461],
-    41: [19235252, 2141263],
-    42: [21376515, 2333976],
-    43: [23710491, 2544034],
-    44: [26254525, 2772997],
-    45: [29027522, 3022566],
-    46: [32050088, 3294598],
-    47: [35344686, 3591112],
-    48: [38935798, 3914311],
-    49: [42850109, 4266600],
-    50: [47116709, 4650593],
-    51: [51767302, 5069147],
-    52: [56836449, 5525370],
-    53: [62361819, 6022654],
-    54: [68384473, 6564692],
-    55: [74949165, 7155515],
-    56: [82104680, 7799511],
-    57: [89904191, 8501467],
-    58: [98405658, 9266598],
-    59: [107672256, 10100593],
-    60: [117772849, 11009646],
-    61: [128782495, 12000515],
-    62: [140783010, 13080560],
-    63: [153863570, 14257811],
-    64: [168121381, 15541015],
-    65: [183662396, 16939705],
-    66: [200602101, 18464279],
-    67: [219066380, 20126064],
-    68: [239192444, 21937409],
-    69: [261129853, 23911777],
-    70: [285041630, 26063836],
-    71: [311105466, 28409582],
-    72: [339515048, 30966444],
-    73: [370481492, 33753424],
-    74: [404234916, 36791232],
-    75: [441026148, 40102443],
-    76: [481128591, 43711663],
-    77: [524840254, 47645713],
-    78: [572485967, 51933826],
-    79: [624419793, 56607872],
-    80: [681027665, 61702579],
-    81: [742730244, 67255812],
-    82: [809986056, 73308835],
-    83: [883294891, 79906630],
-    84: [963201521, 87098226],
-    85: [1050299747, 94937067],
-    86: [1145236814, 103481403],
-    87: [1248718217, 112794729],
-    88: [1361512946, 122946255],
-    89: [1484459201, 134011418],
-    90: [1618470619, 146072446],
-    91: [1764543065, 159218965],
-    92: [1923762030, 173548673],
-    93: [2097310703, 189168053],
-    94: [2286478756, 206193177],
-    95: [2492671933, 224750564],
-    96: [2717422497, 244978115],
-    97: [2962400612, 267026144],
-    98: [3229426756, 291058498],
-    99: [3520485254, 0],
-  };
 
   // Prefer static table if available or if NextExp looks invalid (0/negative)
   let gained = 0,
@@ -846,8 +1000,8 @@ function updateCharacterOverview(card, ui, status) {
     toNext = 0,
     pct = 0,
     nextThreshold = 0;
-  if (xpTable[lvl]) {
-    const [floor, toNextFromTable] = xpTable[lvl];
+  if (XP_TABLE[lvl]) {
+    const [floor, toNextFromTable] = XP_TABLE[lvl];
     lastExp = floor;
     toNext = Math.max(0, toNextFromTable);
     nextThreshold = toNext > 0 ? floor + toNext : exp;
@@ -909,8 +1063,12 @@ function updateCharacterOverview(card, ui, status) {
       nextThreshold = exp;
     }
   }
-  const diff = titleCase(ui.Difficulty || "");
-  const area = ui.Area || "";
+  const diffRaw = titleCase(ui.Difficulty || "");
+  const diff = ["Normal", "Nightmare", "Hell"].includes(diffRaw)
+    ? diffRaw
+    : "Difficulty";
+  const areaRaw = ui.Area || "";
+  const area = String(areaRaw) === "0" || String(areaRaw).trim() === "" ? "Area" : areaRaw;
   const ping = ui.Ping ?? 0;
   const life = ui.Life ?? 0;
   const maxLife = ui.MaxLife ?? 0;
@@ -924,10 +1082,26 @@ function updateCharacterOverview(card, ui, status) {
   const lr = ui.LightningResist ?? 0;
   const pr = ui.PoisonResist ?? 0;
   const pctText = isFinite(pct) ? `${(pct * 100).toFixed(1)}%` : "100%";
+  const gameTiming = getGameTimingStats(games);
 
-  if (classLevelEl) {
-    classLevelEl.textContent = `${cls ? `${cls} | ` : ""}lvl: ${lvl}`;
-    classLevelEl.title = `XP: ${formatNumber(exp)} / Next: ${formatNumber(
+  // Estimate next level ETA from XP progress and average completed game time.
+  let etaInlineText = "Lvl up in ~ —";
+  if (lvl < 99 && toNext > 0) {
+    if (gameTiming.completedGames > 0 && gameTiming.completedTotalDuration > 0 && gained > 0) {
+      const avgGameDuration = gameTiming.completedTotalDuration / gameTiming.completedGames;
+      const xpPerGame = gained / gameTiming.completedGames;
+      if (isFinite(xpPerGame) && xpPerGame > 0) {
+        const gamesToNext = toNext / xpPerGame;
+        const etaMs = gamesToNext * avgGameDuration;
+        if (isFinite(etaMs) && etaMs > 0) {
+          etaInlineText = `Lvl up in ~ ${Math.ceil(gamesToNext)} games (${formatDurationHMS(etaMs)})`;
+        }
+      }
+    }
+  }
+
+  if (charMetaEl) {
+    charMetaEl.title = `XP: ${formatNumber(exp)} / Next: ${formatNumber(
       nextThreshold
     )} (Gained: ${formatNumber(gained)} | To Next: ${formatNumber(
       toNext
@@ -940,16 +1114,44 @@ function updateCharacterOverview(card, ui, status) {
   if (xpFill)
     xpFill.style.width = `${Math.max(0, Math.min(100, pct * 100)).toFixed(1)}%`;
   if (xpPct) xpPct.textContent = pctText;
+  if (levelEl) levelEl.textContent = `Lvl: ${lvl}`;
+  if (etaEl) etaEl.textContent = etaInlineText;
+  if (etaWrapEl) etaWrapEl.style.display = lvl >= 99 ? "none" : "inline-flex";
+  if (gamesPerHourInlineEl) gamesPerHourInlineEl.textContent = "Games/h: —";
+  if (toLevel99El) toLevel99El.textContent = lvl >= 99 ? "0 runs (0s)" : "—";
+  if (gameTiming.completedGames > 0 && gameTiming.completedTotalDuration > 0) {
+    const avgGameDuration = gameTiming.completedTotalDuration / gameTiming.completedGames;
+    const gamesPerHour = Math.ceil(3600000 / avgGameDuration);
+    if (gamesPerHourInlineEl) gamesPerHourInlineEl.textContent = `Games/h: ${gamesPerHour}`;
+
+    const level99Threshold = XP_TABLE[99] ? XP_TABLE[99][0] : 0;
+    const xpTo99 = Math.max(0, level99Threshold - exp);
+    const xpPerGame = gained / gameTiming.completedGames;
+    if (toLevel99El) {
+      if (lvl >= 99 || xpTo99 <= 0) {
+        toLevel99El.textContent = "0 runs (0s)";
+      } else if (isFinite(xpPerGame) && xpPerGame > 0) {
+        const runsTo99 = estimateRunsToLevel99(exp, lvl, xpPerGame);
+        if (!isFinite(runsTo99) || runsTo99 <= 0) {
+          toLevel99El.textContent = "—";
+        } else {
+          const timeTo99Ms = runsTo99 * avgGameDuration;
+          toLevel99El.textContent = `${formatNumber(runsTo99)} runs (${formatDurationHMS(timeTo99Ms)})`;
+        }
+      }
+    }
+  }
   if (diffEl) diffEl.textContent = `${diff}`;
   if (areaEl) areaEl.textContent = `${area}`;
-  if (pingEl) pingEl.textContent = `${ping}ms`;
+  if (pingEl) pingEl.textContent = `Ping: ${ping}ms`;
   if (lifeEl) lifeEl.textContent = `Life: ${life}/${maxLife}`;
   if (manaEl) manaEl.textContent = `Mana: ${mana}/${maxMana}`;
   if (mfEl) mfEl.textContent = `MF: ${mf}%`;
   if (gfEl) gfEl.textContent = `GF: ${gf}%`;
-  if (goldEl) goldEl.textContent = `Gold: ${gold}`;
+  // Use locale-aware thousands separators from the current browser/OS locale.
+  if (goldEl) goldEl.textContent = `Gold: ${formatNumber(gold)}`;
   if (resEl)
-    resEl.innerHTML = `<span class="res-fr">FR: ${fr}</span> | <span class="res-cr">CR: ${cr}</span> | <span class="res-lr">LR: ${lr}</span> | <span class="res-pr">PR: ${pr}</span>`;
+    resEl.innerHTML = `<span class="res-fr">FR: ${fr}</span>&nbsp;&nbsp;|&nbsp;&nbsp;<span class="res-cr">CR: ${cr}</span>&nbsp;&nbsp;|&nbsp;&nbsp;<span class="res-lr">LR: ${lr}</span>&nbsp;&nbsp;|&nbsp;&nbsp;<span class="res-pr">PR: ${pr}</span>`;
 }
 
 // Helpers to prettify class/difficulty
@@ -994,6 +1196,75 @@ function formatNumber(n) {
   } catch {
     return n;
   }
+}
+
+// Estimate runs to level 99 by applying the character-level XP penalty per target level.
+function estimateRunsToLevel99(currentExp, currentLevel, observedXpPerGame) {
+  if (
+    !isFinite(currentExp) ||
+    !isFinite(currentLevel) ||
+    !isFinite(observedXpPerGame) ||
+    observedXpPerGame <= 0 ||
+    currentLevel >= 99
+  ) {
+    return NaN;
+  }
+
+  const currentPenalty = getCharacterLevelPenaltyRatio(currentLevel);
+  if (!isFinite(currentPenalty) || currentPenalty <= 0) {
+    return NaN;
+  }
+
+  // Normalize observed XP/game to a penalty-free baseline, then re-apply per target level.
+  const baselineXpPerGame = observedXpPerGame / currentPenalty;
+  if (!isFinite(baselineXpPerGame) || baselineXpPerGame <= 0) {
+    return NaN;
+  }
+
+  let totalRuns = 0;
+  for (let level = currentLevel; level < 99; level++) {
+    const levelEntry = XP_TABLE[level];
+    if (!levelEntry || levelEntry.length < 2) {
+      return NaN;
+    }
+
+    const levelStartExp = levelEntry[0];
+    const xpToNextLevel = levelEntry[1];
+    if (!isFinite(levelStartExp) || !isFinite(xpToNextLevel) || xpToNextLevel <= 0) {
+      continue;
+    }
+
+    const xpNeededAtLevel =
+      level === currentLevel
+        ? Math.max(0, levelStartExp + xpToNextLevel - currentExp)
+        : xpToNextLevel;
+    if (xpNeededAtLevel <= 0) {
+      continue;
+    }
+
+    const levelPenalty = getCharacterLevelPenaltyRatio(level);
+    const effectiveXpPerGame = baselineXpPerGame * levelPenalty;
+    if (!isFinite(effectiveXpPerGame) || effectiveXpPerGame <= 0) {
+      return NaN;
+    }
+
+    totalRuns += xpNeededAtLevel / effectiveXpPerGame;
+  }
+
+  return Math.ceil(totalRuns);
+}
+
+// Source: The Arreat Summit "Experience" table (Character Levels 70-98).
+function getCharacterLevelPenaltyRatio(level) {
+  if (!isFinite(level)) {
+    return 1;
+  }
+
+  if (level < 70) {
+    return 1;
+  }
+
+  return XP_LEVEL_PENALTY_BY_LEVEL[level] ?? 0.0059;
 }
 
 function updateRunStats(card, games) {
@@ -1162,6 +1433,35 @@ function formatDuration(ms) {
   if (days > 0) return `${days}d ${hours % 24}h`;
   if (hours > 0) return `${hours}h ${minutes % 60}m`;
   if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
+}
+
+function formatDurationHMS(ms) {
+  if (!isFinite(ms) || ms < 0) {
+    return "N/A";
+  }
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const remainingAfterDays = totalSeconds % 86400;
+  const hours = Math.floor(remainingAfterDays / 3600);
+  const minutes = Math.floor((remainingAfterDays % 3600) / 60);
+  const seconds = remainingAfterDays % 60;
+
+  // Keep the output compact by hiding units that are still zero.
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  }
+
+  const totalHours = Math.floor(totalSeconds / 3600);
+  if (totalHours > 0) {
+    return `${totalHours}h ${minutes}m ${seconds}s`;
+  }
+
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  if (totalMinutes > 0) {
+    return `${totalMinutes}m ${seconds}s`;
+  }
+
   return `${seconds}s`;
 }
 

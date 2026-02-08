@@ -74,12 +74,19 @@
    BASE STYLES
    ======================================== */
 body {
-  padding: 0 var(--spacing-md) var(--spacing-md);
+  padding: 0 2px 2px;
   background: linear-gradient(135deg, var(--bg-primary) 0%, #151820 100%);
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   line-height: 1.6;
   min-height: 100vh;
+}
+
+main.container {
+  max-width: none !important;
+  width: 100%;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* ========================================
@@ -90,6 +97,8 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-md);
+  margin-left: 5px;
+  margin-right: 5px;
   background: var(--bg-secondary);
   padding: var(--spacing-md);
   border-radius: var(--radius-lg);
@@ -244,7 +253,7 @@ body {
   border-radius: var(--radius-lg);
   padding: var(--spacing-sm) var(--spacing-md);
   padding-bottom: 0;
-  margin-bottom: calc(var(--spacing-xs) + var(--spacing-sm));
+  margin: 0 5px calc(var(--spacing-xs) + var(--spacing-sm));
   transition: all var(--transition-normal);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-color);
@@ -291,11 +300,16 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 
 .character-stats .co-line {
   margin-bottom: 0;
+}
+
+.character-stats > .co-line {
+  margin-top: var(--spacing-xs);
 }
 
 .character-info {
@@ -306,6 +320,32 @@ body {
   align-items: center;
   gap: var(--spacing-sm);
   letter-spacing: -0.3px;
+  line-height: 1;
+}
+
+.character-info .autostart-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transform: translateY(3px);
+}
+
+.character-info .autostart-checkbox {
+  margin: 0;
+  vertical-align: middle;
+}
+
+.character-info .supervisor-name {
+  font-size: 0.92em;
+  color: var(--primary);
+}
+
+.character-info .co-char-meta {
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--co-text);
+  white-space: nowrap;
 }
 
 /* ========================================
@@ -334,6 +374,132 @@ body {
   min-width: 0;
 }
 
+.character-overview-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+}
+
+.character-overview-lines .co-line {
+  margin: 0;
+}
+
+/* Keep this line on one row and use full card width below the header buttons. */
+.character-overview-lines .co-info-left {
+  flex-wrap: nowrap;
+}
+
+.character-overview-lines .co-area,
+.character-overview-lines .co-ping,
+.character-overview-lines .co-level,
+.character-overview-lines .co-difficulty,
+.character-overview-lines .co-eta-wrap,
+.character-overview-lines .co-eta,
+.character-overview-lines .co-games-per-hour-inline,
+.character-overview-lines .co-dot,
+.character-overview-lines .xp-percent {
+  white-space: nowrap;
+}
+
+.co-eta-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+/* Reserve stable width per element in line 2 to avoid visual jitter on updates. */
+.character-overview-lines .co-difficulty {
+  display: inline-block;
+  width: 9ch;
+}
+
+.character-overview-lines .co-area {
+  display: inline-block;
+  width: 27ch; /* Longest area label in d2go areas.go is 27 chars. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.character-overview-lines .co-ping {
+  display: inline-block;
+  width: 11ch;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.character-overview-lines .co-level {
+  display: inline-block;
+  width: 7ch;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.character-overview-lines .co-xp {
+  flex: 0 0 auto;
+  min-width: 17ch;
+}
+
+.character-overview-lines .xp-percent {
+  display: inline-block;
+  width: 6ch;
+  margin-left: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 1em;
+  color: var(--co-text);
+  font-weight: 500;
+}
+
+.character-overview-lines .co-eta-wrap {
+  flex: 0 0 auto;
+}
+
+.character-overview-lines .co-eta {
+  display: inline-block;
+  width: 40ch; /* Reserve enough space for long day/hour ETA strings. */
+  font-variant-numeric: tabular-nums;
+  font-size: 1em;
+}
+
+.character-overview-lines .co-games-per-hour-inline {
+  display: inline-block;
+  width: 11ch;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keep vitals line stable and avoid horizontal jitter while values change. */
+.co-vitals-line {
+  flex-wrap: nowrap;
+}
+
+.co-vitals-line .co-life,
+.co-vitals-line .co-mana {
+  display: inline-block;
+  width: 14ch;
+  font-variant-numeric: tabular-nums;
+}
+
+.co-vitals-line .co-mf,
+.co-vitals-line .co-gf {
+  display: inline-block;
+  width: 10ch;
+  font-variant-numeric: tabular-nums;
+}
+
+.co-vitals-line .co-gold {
+  display: inline-block;
+  width: 14ch;
+  font-variant-numeric: tabular-nums;
+}
+
+.co-vitals-line .co-res {
+  display: inline-block;
+  width: 30ch;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .character-stats-inline {
   display: flex;
   gap: var(--spacing-xs);
@@ -341,15 +507,57 @@ body {
   margin-left: var(--spacing-md);
 }
 
-.btn-games {
-  pointer-events: none;
-  opacity: 0.85;
+/* Keep inline stat buttons at a fixed compact width. */
+#characters-container .character-controls .btn-inline-stat {
+  width: 64px;
+  min-width: 64px;
+  box-sizing: border-box;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* Use tabular numbers so 1/8/0 keep equal width and alignment. */
+#characters-container .character-controls .btn-inline-stat span {
+  display: inline-block;
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keep icon spacing compact so counters stay visually balanced. */
+#characters-container .character-controls .btn-inline-stat .btn-icon {
+  margin-right: 4px;
+}
+
+/* Keep the games button informational, but still hoverable for tooltip and feedback. */
+#characters-container .character-controls .btn-games {
+  cursor: default;
+  opacity: 0.9;
+}
+
+/* Add a small hover animation only for the games button. */
+#characters-container .character-controls .btn-games:hover {
+  animation: games-counter-glow 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes games-counter-glow {
+  from {
+    box-shadow: 0 4px 12px rgba(0, 137, 235, 0.25);
+  }
+  to {
+    box-shadow: 0 4px 14px rgba(0, 137, 235, 0.45);
+  }
 }
 
 .co-classlevel,
 .co-difficulty,
 .co-area,
-.co-ping {
+.co-ping,
+.co-level,
+.co-eta,
+.co-games-per-hour-inline,
+.runtime-entry,
+.to-level-99 {
   color: var(--co-text);
   font-weight: 500;
 }
@@ -418,11 +626,11 @@ body {
 }
 
 .xp-bar {
-  height: 6px;
+  height: 12px;
   background: var(--bg-xp-bar);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  width: 50px;
+  width: 75px;
   display: inline-block;
   vertical-align: middle;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
@@ -442,6 +650,42 @@ body {
   font-size: 0.9em;
   color: var(--primary-light);
   font-weight: 600;
+}
+
+.expanded-runtime-line {
+  margin-bottom: var(--spacing-sm);
+  flex-wrap: nowrap;
+}
+
+.expanded-runtime-line .runtime-entry {
+  display: inline-flex;
+  align-items: center;
+}
+
+.expanded-runtime-line .runtime-label {
+  color: var(--co-text);
+  font-weight: 500;
+  /* Keep a stable visual gap between label and value. */
+  margin-right: 0.2rem;
+}
+
+.expanded-runtime-line .running-for {
+  display: inline-block;
+  width: 16ch; /* reserve for strings like "12d 23h 59m 59s" */
+  font-variant-numeric: tabular-nums;
+}
+
+.expanded-runtime-line .current-game-time,
+.expanded-runtime-line .avg-game-time {
+  display: inline-block;
+  width: 12ch; /* reserve for strings like "12h 59m 59s" */
+  font-variant-numeric: tabular-nums;
+}
+
+.expanded-runtime-line .runtime-entry-to99 .to-level-99 {
+  display: inline-block;
+  width: 28ch;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ========================================
@@ -488,7 +732,19 @@ body {
    ======================================== */
 .character-controls {
   display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.character-controls-row {
+  display: flex;
   gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.character-controls-row-main {
+  flex-wrap: nowrap;
 }
 
 .toggle-details {
@@ -671,6 +927,7 @@ body {
   justify-content: center;
   width: 32px;
   height: 32px;
+  box-sizing: border-box;
 }
 
 .btn:hover {
@@ -682,12 +939,15 @@ body {
   transform: translateY(0);
 }
 
-.btn-start {
+.btn-start,
+.btn-resume {
   background: linear-gradient(135deg, var(--status-success) 0%, #218838 100%);
   color: var(--text-primary);
+  border: 2px solid #1e7e34;
 }
 
-.btn-start:hover {
+.btn-start:hover,
+.btn-resume:hover {
   background: linear-gradient(135deg, #218838 0%, var(--status-success) 100%);
   box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
 }
@@ -695,6 +955,7 @@ body {
 .btn-manual {
   background: linear-gradient(135deg, #1a7a31 0%, #155724 100%);
   color: var(--text-primary);
+  border: 2px solid #155724;
 }
 
 .btn-manual:hover {
@@ -705,6 +966,7 @@ body {
 .btn-stop {
   background: linear-gradient(135deg, var(--status-danger) 0%, #c82333 100%);
   color: var(--text-primary);
+  border: 2px solid #bd2130;
 }
 
 .btn-stop:hover {
@@ -715,6 +977,7 @@ body {
 .btn-pause {
   background: linear-gradient(135deg, var(--status-warning) 0%, #e0a800 100%);
   color: #000;
+  border: 2px solid #d39e00;
 }
 
 .btn-pause:hover {
@@ -934,10 +1197,17 @@ body {
 }
 
 .running-for {
-  margin-top: var(--spacing-sm);
-  font-size: 0.9em;
-  color: var(--text-secondary);
-  font-style: italic;
+  color: var(--co-text);
+  font-weight: 500;
+  font-style: normal;
+}
+
+.current-game-time,
+.avg-game-time,
+.games-per-hour {
+  color: var(--co-text);
+  font-weight: 500;
+  font-style: normal;
 }
 
 /* ========================================
@@ -1176,8 +1446,8 @@ body {
     width: 100%;
   }
 
-  .character-controls button:last-child {
-    margin-left: auto;
+  .character-controls-row-main {
+    flex-wrap: wrap;
   }
 
   .stats-grid {
@@ -1194,6 +1464,14 @@ body {
 
   .co-line {
     gap: var(--spacing-xs);
+  }
+
+  .character-overview-lines .co-info-left {
+    flex-wrap: wrap;
+  }
+
+  .co-vitals-line {
+    flex-wrap: wrap;
   }
 }
 
