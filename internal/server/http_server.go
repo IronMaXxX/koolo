@@ -788,19 +788,11 @@ func (s *HttpServer) getStatusData() IndexData {
 			// Prefer human-readable area name if available
 			if lvl := data.PlayerUnit.Area.Area(); lvl.Name != "" {
 				areaStr = lvl.Name
-				// Local typo fix: d2go/pkg/data/area/areas.go line 117 uses "Rigid Highlands".
-				switch areaStr {
-				case "Rigid Highlands":
-					areaStr = "Frigid Highlands"
-				case "Rigid Highland":
-					areaStr = "Frigid Highland"
-				}
 			} else {
 				areaStr = fmt.Sprint(data.PlayerUnit.Area)
 			}
 
 			stats.UI = bot.CharacterOverview{
-				CharacterName:   data.CharacterCfg.CharacterName,
 				Class:           data.CharacterCfg.Character.Class,
 				Level:           lvl,
 				Experience:      exp,
@@ -826,9 +818,6 @@ func (s *HttpServer) getStatusData() IndexData {
 		// Check if this is a companion follower & ensure we always expose class
 		cfg, found := config.GetCharacter(supervisorName)
 		if found {
-			if stats.UI.CharacterName == "" {
-				stats.UI.CharacterName = cfg.CharacterName
-			}
 			if stats.UI.Class == "" {
 				stats.UI.Class = cfg.Character.Class
 			}
@@ -994,7 +983,7 @@ func (s *HttpServer) Listen(port int) error {
 	http.HandleFunc("/armory", s.armoryPage)
 	http.HandleFunc("/api/armory", s.armoryAPI)
 	http.HandleFunc("/api/armory/characters", s.armoryCharactersAPI)
-	http.HandleFunc("/api/armory/dump", s.armoryDumpAPI)
+	http.HandleFunc("/api/armory/all", s.armoryAllAPI)
 
 	s.registerDropRoutes()
 
@@ -1601,6 +1590,7 @@ func (s *HttpServer) config(w http.ResponseWriter, r *http.Request) {
 		// Debug
 		newConfig.Debug.Log = r.Form.Get("debug_log") == "true"
 		newConfig.Debug.Screenshots = r.Form.Get("debug_screenshots") == "true"
+		newConfig.Debug.OpenOverlayMapOnGameStart = r.Form.Get("debug_open_overlay_map") == "true"
 		// Discord
 		newConfig.Discord.Enabled = r.Form.Get("discord_enabled") == "true"
 		newConfig.Discord.EnableGameCreatedMessages = r.Form.Has("enable_game_created_messages")
@@ -1742,6 +1732,7 @@ type ConfigUpdateOptions struct {
 	Scheduler           bool `json:"scheduler"`
 	Muling              bool `json:"muling"`
 	Shopping            bool `json:"shopping"`
+	CharacterCreation   bool `json:"characterCreation"` // Auto-create character setting
 	UpdateAllRunDetails bool `json:"updateAllRunDetails"`
 }
 
@@ -1760,6 +1751,11 @@ func (s *HttpServer) updateConfigFromForm(values url.Values, cfg *config.Charact
 		cfg.Realm = values.Get("realm")
 		cfg.AuthMethod = values.Get("authmethod")
 		cfg.AuthToken = values.Get("AuthToken")
+	}
+
+	// Character Creation Settings
+	if sections.CharacterCreation {
+		cfg.AutoCreateCharacter = values.Has("autoCreateCharacter")
 	}
 
 	// Client Settings
